@@ -9,10 +9,36 @@ import {
 } from 'lucide-react';
 
 // --- INITIALISATION FIREBASE ---
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// ⚠️ À REMPLACER PAR VOTRE CONFIGURATION FIREBASE
+// Vous trouverez ces informations dans les paramètres de votre projet sur console.firebase.google.com
+const myFirebaseConfig = {
+  apiKey: "VOTRE_API_KEY",
+  authDomain: "votre-projet.firebaseapp.com",
+  projectId: "votre-projet",
+  storageBucket: "votre-projet.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef"
+};
+
+let app, auth, db;
+let isFirebaseConfigured = false;
+
+try {
+  // Détecte si on est dans l'environnement de test ou si on doit utiliser vos clés
+  const envConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+  const configToUse = (envConfigStr && envConfigStr !== '{}') ? JSON.parse(envConfigStr) : myFirebaseConfig;
+
+  // On vérifie que les clés par défaut ont bien été remplacées
+  if (configToUse.apiKey && configToUse.apiKey !== "VOTRE_API_KEY") {
+    app = initializeApp(configToUse);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    isFirebaseConfigured = true;
+  }
+} catch (error) {
+  console.error("Erreur d'initialisation Firebase :", error);
+}
+
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'finance-pro-app';
 
 const App = () => {
@@ -48,6 +74,11 @@ const App = () => {
 
   // --- 1. AUTHENTIFICATION ---
   useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setIsAuthLoading(false);
+      return;
+    }
+
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         try {
@@ -58,6 +89,7 @@ const App = () => {
       }
     };
     initAuth();
+    
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAuthLoading(false);
@@ -67,7 +99,7 @@ const App = () => {
 
   // --- 2. CHARGEMENT DES DONNÉES (CLOUD) ---
   useEffect(() => {
-    if (!user) return;
+    if (!isFirebaseConfigured || !user) return;
     const basePath = `artifacts/${appId}/users/${user.uid}`;
 
     // Écoute des transactions
@@ -88,7 +120,7 @@ const App = () => {
       setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, console.error);
 
-    // Écoute des paramètres (Budget) - Chemin pair exigé par Firebase
+    // Écoute des paramètres (Budget)
     const unsubSettings = onSnapshot(doc(db, `${basePath}/settings/config`), (docSnap) => {
       if (docSnap.exists() && docSnap.data().budgetLimit) {
         setBudgetLimit(docSnap.data().budgetLimit);
@@ -234,8 +266,44 @@ const App = () => {
     { id: 'goals', icon: Target, label: 'Budget' }
   ];
 
+  // 1. ECRAN DE CONFIGURATION FIREBASE MANQUANTE
+  if (!isFirebaseConfigured) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
+        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-xl border border-slate-100 animate-fade-in-up">
+          <div className="flex flex-col items-center mb-6 text-center">
+            <div className="bg-amber-100 p-4 rounded-full text-amber-500 mb-4">
+              <AlertCircle size={40} />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800">Dernière étape !</h1>
+            <p className="text-slate-500 mt-2 font-medium">Votre application est en ligne, mais elle a besoin d'une base de données pour fonctionner correctement.</p>
+          </div>
+
+          <div className="space-y-4 text-sm text-slate-700">
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+              <h3 className="font-bold text-slate-800 mb-2 flex items-center"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs">1</span> Créez votre base de données gratuite</h3>
+              <p>Allez sur <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-blue-600 font-bold hover:underline">Firebase Console</a>, créez un projet, puis ajoutez une "Application Web" (l'icône <code>&lt;/&gt;</code>).</p>
+            </div>
+            
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+              <h3 className="font-bold text-slate-800 mb-2 flex items-center"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs">2</span> Activez les services</h3>
+              <p>Dans Firebase, cherchez le menu à gauche et activez <b>Authentication</b> (choisissez Email/Mot de passe) et <b>Firestore Database</b>.</p>
+            </div>
+
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+              <h3 className="font-bold text-slate-800 mb-2 flex items-center"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs">3</span> Collez vos clés dans le code</h3>
+              <p>Copiez les informations données par Firebase (apiKey, projectId...) et remplacez la variable <code>myFirebaseConfig</code> (tout en haut, vers la ligne 14) dans votre fichier <b>App.jsx</b>.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. ECRAN DE CHARGEMENT
   if (isAuthLoading) return <div className="flex h-screen items-center justify-center bg-slate-50"><div className="animate-pulse flex flex-col items-center"><Activity size={48} className="text-emerald-500 mb-4" /><p className="text-slate-500 font-medium">Chargement...</p></div></div>;
 
+  // 3. ECRAN DE CONNEXION
   if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
@@ -290,6 +358,7 @@ const App = () => {
     );
   }
 
+  // 4. ECRAN PRINCIPAL (APPLICATION)
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
       
