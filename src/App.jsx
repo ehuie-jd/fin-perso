@@ -12,12 +12,13 @@ import {
 // ⚠️ À REMPLACER PAR VOTRE CONFIGURATION FIREBASE
 // Vous trouverez ces informations dans les paramètres de votre projet sur console.firebase.google.com
 const myFirebaseConfig = {
-  apiKey: "VOTRE_API_KEY",
-  authDomain: "votre-projet.firebaseapp.com",
-  projectId: "votre-projet",
-  storageBucket: "votre-projet.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  apiKey: "AIzaSyBZX2RfrA27mIEmKszudAm03v8UOQADKCM",
+  authDomain: "fin-perso-8fdaf.firebaseapp.com",
+  projectId: "fin-perso-8fdaf",
+  storageBucket: "fin-perso-8fdaf.firebasestorage.app",
+  messagingSenderId: "762077711503",
+  appId: "1:762077711503:web:e460bff889d504743ef4fa",
+  measurementId: "G-YR2ENYHTBZ"
 };
 
 let app, auth, db;
