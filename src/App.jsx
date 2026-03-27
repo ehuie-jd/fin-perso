@@ -1,17 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot } from 'firebase/firestore';
-import { 
-  Home, ArrowUpRight, ArrowDownRight, CreditCard, PieChart as PieChartIcon, 
-  Target, AlertCircle, Plus, Download, Wallet, CheckCircle2, TrendingUp, 
-  Activity, Trash2, PlusCircle, Settings, X, LogOut, Mail, Lock
-} from 'lucide-react';
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-// --- INITIALISATION FIREBASE ---
-// ⚠️ À REMPLACER PAR VOTRE CONFIGURATION FIREBASE
-// Vous trouverez ces informations dans les paramètres de votre projet sur console.firebase.google.com
-const myFirebaseConfig = {
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
   apiKey: "AIzaSyBZX2RfrA27mIEmKszudAm03v8UOQADKCM",
   authDomain: "fin-perso-8fdaf.firebaseapp.com",
   projectId: "fin-perso-8fdaf",
@@ -20,6 +15,10 @@ const myFirebaseConfig = {
   appId: "1:762077711503:web:e460bff889d504743ef4fa",
   measurementId: "G-YR2ENYHTBZ"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 let app, auth, db;
 let isFirebaseConfigured = false;
