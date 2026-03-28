@@ -8,8 +8,8 @@ import {
 // --- CONFIGURATION GOOGLE SHEETS ---
 // Colle ici l'URL de ton application Web générée par Google Apps Script
 // Exemple : "https://script.google.com/macros/s/AKfycbx_TON_URL_SECRETE/exec"
-https://script.google.com/macros/s/AKfycbxbfQhC4lnkUzqieUT8C0eDzAHhc-ltByjOYknrz67Wk9R9uHC4KX_ZZv19Hnve5399/exec
-const GOOGLE_SHEETS_URL = ""; 
+
+const GOOGLE_SHEETS_URL = "https://script.google.com/macros/s/AKfycbxbfQhC4lnkUzqieUT8C0eDzAHhc-ltByjOYknrz67Wk9R9uHC4KX_ZZv19Hnve5399/exec"; 
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
