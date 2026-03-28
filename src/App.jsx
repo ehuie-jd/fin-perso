@@ -1,57 +1,30 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Home, ArrowUpRight, ArrowDownRight, CreditCard, PieChart as PieChartIcon, 
+  Target, AlertCircle, Plus, Download, Wallet, CheckCircle2, TrendingUp, 
+  Activity, Trash2, PlusCircle, Settings, X, RefreshCw
+} from 'lucide-react';
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBZX2RfrA27mIEmKszudAm03v8UOQADKCM",
-  authDomain: "fin-perso-8fdaf.firebaseapp.com",
-  projectId: "fin-perso-8fdaf",
-  storageBucket: "fin-perso-8fdaf.firebasestorage.app",
-  messagingSenderId: "762077711503",
-  appId: "1:762077711503:web:e460bff889d504743ef4fa",
-  measurementId: "G-YR2ENYHTBZ"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
-let app, auth, db;
-let isFirebaseConfigured = false;
-
-try {
-  // Détecte si on est dans l'environnement de test ou si on doit utiliser vos clés
-  const envConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-  const configToUse = (envConfigStr && envConfigStr !== '{}') ? JSON.parse(envConfigStr) : myFirebaseConfig;
-
-  // On vérifie que les clés par défaut ont bien été remplacées
-  if (configToUse.apiKey && configToUse.apiKey !== "VOTRE_API_KEY") {
-    app = initializeApp(configToUse);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    isFirebaseConfigured = true;
-  }
-} catch (error) {
-  console.error("Erreur d'initialisation Firebase :", error);
-}
-
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'finance-pro-app';
+// --- CONFIGURATION GOOGLE SHEETS ---
+// Colle ici l'URL de ton application Web générée par Google Apps Script
+// Exemple : "https://script.google.com/macros/s/AKfycbx_TON_URL_SECRETE/exec"
+https://script.google.com/macros/s/AKfycbxbfQhC4lnkUzqieUT8C0eDzAHhc-ltByjOYknrz67Wk9R9uHC4KX_ZZv19Hnve5399/exec
+const GOOGLE_SHEETS_URL = ""; 
 
 const App = () => {
-  // --- ÉTATS GLOBAUX ---
-  const [user, setUser] = useState(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [budgetLimit, setBudgetLimit] = useState(150000); // Budget par défaut
   
-  // --- ÉTATS DES DONNÉES ---
-  const [transactions, setTransactions] = useState([]);
-  const [debts, setDebts] = useState([]);
-  const [goals, setGoals] = useState([]);
+  // --- ÉTATS DES DONNÉES (Sauvegarde 100% Locale) ---
+  const [budgetLimit, setBudgetLimit] = useState(() => parseFloat(localStorage.getItem('finpro_budget')) || 150000);
+  const [transactions, setTransactions] = useState(() => JSON.parse(localStorage.getItem('finpro_tx')) || []);
+  const [debts, setDebts] = useState(() => JSON.parse(localStorage.getItem('finpro_debts')) || []);
+  const [goals, setGoals] = useState(() => JSON.parse(localStorage.getItem('finpro_goals')) || []);
+
+  // Synchronisation avec le stockage local à chaque changement
+  useEffect(() => { localStorage.setItem('finpro_budget', budgetLimit.toString()); }, [budgetLimit]);
+  useEffect(() => { localStorage.setItem('finpro_tx', JSON.stringify(transactions)); }, [transactions]);
+  useEffect(() => { localStorage.setItem('finpro_debts', JSON.stringify(debts)); }, [debts]);
+  useEffect(() => { localStorage.setItem('finpro_goals', JSON.stringify(goals)); }, [goals]);
 
   // --- ÉTATS DES MODALES ---
   const [showTransactionModal, setShowTransactionModal] = useState(false);
@@ -63,72 +36,11 @@ const App = () => {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [newGoal, setNewGoal] = useState({ name: '', targetAmount: '' });
 
-  const [amountModal, setAmountModal] = useState(null); // { type: 'debt' | 'goal', id, title, current }
+  const [amountModal, setAmountModal] = useState(null);
   const [amountInput, setAmountInput] = useState('');
-
-  // --- ÉTATS AUTHENTIFICATION ---
-  const [isLoginMode, setIsLoginMode] = useState(true);
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState('');
-
-  // --- 1. AUTHENTIFICATION ---
-  useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setIsAuthLoading(false);
-      return;
-    }
-
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        try {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } catch (error) {
-          console.error("Erreur token custom:", error);
-        }
-      }
-    };
-    initAuth();
-    
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // --- 2. CHARGEMENT DES DONNÉES (CLOUD) ---
-  useEffect(() => {
-    if (!isFirebaseConfigured || !user) return;
-    const basePath = `artifacts/${appId}/users/${user.uid}`;
-
-    // Écoute des transactions
-    const unsubTx = onSnapshot(collection(db, `${basePath}/transactions`), (snap) => {
-      const txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Tri par date décroissante
-      txs.sort((a, b) => new Date(b.date) - new Date(a.date));
-      setTransactions(txs);
-    }, console.error);
-
-    // Écoute des dettes
-    const unsubDebts = onSnapshot(collection(db, `${basePath}/debts`), (snap) => {
-      setDebts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, console.error);
-
-    // Écoute des objectifs
-    const unsubGoals = onSnapshot(collection(db, `${basePath}/goals`), (snap) => {
-      setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, console.error);
-
-    // Écoute des paramètres (Budget)
-    const unsubSettings = onSnapshot(doc(db, `${basePath}/settings/config`), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().budgetLimit) {
-        setBudgetLimit(docSnap.data().budgetLimit);
-      }
-    }, console.error);
-
-    return () => { unsubTx(); unsubDebts(); unsubGoals(); unsubSettings(); };
-  }, [user]);
+  
+  // État pour afficher si la synchro vers Google Sheets est en cours
+  const [syncStatus, setSyncStatus] = useState('');
 
   // --- CALCULS AUTOMATIQUES ---
   const { totalIncome, totalExpenses, balance, expensesByCategory } = useMemo(() => {
@@ -156,98 +68,98 @@ const App = () => {
   }, [debts]);
 
   const maxExpenseCategory = expensesByCategory.length > 0 ? expensesByCategory[0].value : 1;
-  const basePath = user ? `artifacts/${appId}/users/${user.uid}` : '';
 
-  // --- GESTIONNAIRES D'ÉVÉNEMENTS (CRUD CLOUD) ---
-  const handleAddTransaction = async (e) => {
+  // --- ENVOI VERS GOOGLE SHEETS ---
+  const sendToGoogleSheets = (sheetName, data) => {
+    if (!GOOGLE_SHEETS_URL) return;
+    
+    setSyncStatus('syncing');
+    
+    // Le mode 'no-cors' permet d'envoyer la requête silencieusement sans être bloqué par les sécurités du navigateur
+    fetch(GOOGLE_SHEETS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheet: sheetName, data: data })
+    })
+    .then(() => {
+      setSyncStatus('success');
+      setTimeout(() => setSyncStatus(''), 3000); // Efface le message après 3 secondes
+    })
+    .catch((err) => {
+      console.error("Erreur d'envoi vers Google Sheets :", err);
+      setSyncStatus('error');
+    });
+  };
+
+  // --- GESTIONNAIRES D'ÉVÉNEMENTS ---
+  const handleAddTransaction = (e) => {
     e.preventDefault();
-    if (!user || !newTransaction.amount) return;
-    try {
-      await addDoc(collection(db, `${basePath}/transactions`), {
-        ...newTransaction, amount: parseFloat(newTransaction.amount), createdAt: new Date().toISOString()
-      });
-      setShowTransactionModal(false);
-      setNewTransaction({ type: 'expense', amount: '', category: 'Alimentation', date: new Date().toISOString().split('T')[0], description: '' });
-    } catch (err) { console.error(err); }
+    if (!newTransaction.amount) return;
+    
+    const txData = { 
+      id: Date.now().toString(), 
+      ...newTransaction, 
+      amount: parseFloat(newTransaction.amount), 
+      createdAt: new Date().toISOString() 
+    };
+    
+    // 1. Sauvegarde locale pour affichage immédiat
+    setTransactions(prev => [txData, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date)));
+    
+    // 2. Envoi silencieux vers Google Sheets
+    sendToGoogleSheets('Transactions', txData);
+    
+    setShowTransactionModal(false);
+    setNewTransaction({ type: 'expense', amount: '', category: 'Alimentation', date: new Date().toISOString().split('T')[0], description: '' });
   };
 
-  const handleDeleteTransaction = async (id) => {
-    if (!user) return;
-    try { await deleteDoc(doc(db, `${basePath}/transactions`, id)); } 
-    catch (err) { console.error(err); }
+  const handleDeleteTransaction = (id) => {
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    // Note : La suppression dans Google Sheets nécessite une logique plus complexe dans Apps Script, 
+    // on se contente de la suppression locale ici pour garder l'API simple.
   };
 
-  const handleAddDebt = async (e) => {
+  const handleAddDebt = (e) => {
     e.preventDefault();
-    if (!user || !newDebt.name || !newDebt.totalAmount) return;
-    try {
-      await addDoc(collection(db, `${basePath}/debts`), {
-        name: newDebt.name, totalAmount: parseFloat(newDebt.totalAmount), paidAmount: 0, createdAt: new Date().toISOString()
-      });
-      setShowDebtModal(false); setNewDebt({ name: '', totalAmount: '' });
-    } catch (err) { console.error(err); }
+    if (!newDebt.name || !newDebt.totalAmount) return;
+    const debtData = { id: Date.now().toString(), name: newDebt.name, totalAmount: parseFloat(newDebt.totalAmount), paidAmount: 0, createdAt: new Date().toISOString() };
+    setDebts(prev => [...prev, debtData]);
+    setShowDebtModal(false); setNewDebt({ name: '', totalAmount: '' });
   };
 
-  const handleAddGoal = async (e) => {
+  const handleAddGoal = (e) => {
     e.preventDefault();
-    if (!user || !newGoal.name || !newGoal.targetAmount) return;
-    try {
-      await addDoc(collection(db, `${basePath}/goals`), {
-        name: newGoal.name, targetAmount: parseFloat(newGoal.targetAmount), savedAmount: 0, createdAt: new Date().toISOString()
-      });
-      setShowGoalModal(false); setNewGoal({ name: '', targetAmount: '' });
-    } catch (err) { console.error(err); }
+    if (!newGoal.name || !newGoal.targetAmount) return;
+    const goalData = { id: Date.now().toString(), name: newGoal.name, targetAmount: parseFloat(newGoal.targetAmount), savedAmount: 0, createdAt: new Date().toISOString() };
+    setGoals(prev => [...prev, goalData]);
+    setShowGoalModal(false); setNewGoal({ name: '', targetAmount: '' });
   };
 
-  const handleAddAmount = async (e) => {
+  const handleAddAmount = (e) => {
     e.preventDefault();
-    if (!user || !amountInput || isNaN(amountInput)) return;
-    try {
-      const amount = parseFloat(amountInput);
-      if (amountModal.type === 'debt') {
-        const debt = debts.find(d => d.id === amountModal.id);
-        await updateDoc(doc(db, `${basePath}/debts`, amountModal.id), { paidAmount: debt.paidAmount + amount });
-      } else {
-        const goal = goals.find(g => g.id === amountModal.id);
-        await updateDoc(doc(db, `${basePath}/goals`, amountModal.id), { savedAmount: goal.savedAmount + amount });
-      }
-      setAmountModal(null); setAmountInput('');
-    } catch (err) { console.error(err); }
+    if (!amountInput || isNaN(amountInput)) return;
+    const amount = parseFloat(amountInput);
+
+    if (amountModal.type === 'debt') {
+      setDebts(prev => prev.map(d => d.id === amountModal.id ? { ...d, paidAmount: d.paidAmount + amount } : d));
+    } else {
+      setGoals(prev => prev.map(g => g.id === amountModal.id ? { ...g, savedAmount: g.savedAmount + amount } : g));
+    }
+    setAmountModal(null); setAmountInput('');
   };
 
-  const handleUpdateBudget = async (e) => {
+  const handleUpdateBudget = (e) => {
     const val = parseFloat(e.target.value);
     setBudgetLimit(val || 0);
-    if (!user || !val) return;
-    try { await setDoc(doc(db, `${basePath}/settings/config`), { budgetLimit: val }, { merge: true }); } 
-    catch (err) { console.error(err); }
   };
 
   const exportData = () => {
-    const data = JSON.stringify({ transactions, debts, goals }, null, 2);
+    const data = JSON.stringify({ transactions, debts, goals, budgetLimit }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = `finance_export_${new Date().toISOString().split('T')[0]}.json`; a.click();
-  };
-
-  // --- GESTIONNAIRES AUTHENTIFICATION ---
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    setAuthError('');
-    try {
-      if (isLoginMode) {
-        await signInWithEmailAndPassword(auth, authEmail, authPassword);
-      } else {
-        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
-      }
-    } catch (err) {
-      setAuthError(err.message.includes('auth/') ? "Email ou mot de passe incorrect." : err.message);
-    }
-  };
-
-  const handleLogout = () => {
-    signOut(auth);
   };
 
   // --- COMPOSANTS UI ---
@@ -266,99 +178,6 @@ const App = () => {
     { id: 'goals', icon: Target, label: 'Budget' }
   ];
 
-  // 1. ECRAN DE CONFIGURATION FIREBASE MANQUANTE
-  if (!isFirebaseConfigured) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
-        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-xl border border-slate-100 animate-fade-in-up">
-          <div className="flex flex-col items-center mb-6 text-center">
-            <div className="bg-amber-100 p-4 rounded-full text-amber-500 mb-4">
-              <AlertCircle size={40} />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-800">Dernière étape !</h1>
-            <p className="text-slate-500 mt-2 font-medium">Votre application est en ligne, mais elle a besoin d'une base de données pour fonctionner correctement.</p>
-          </div>
-
-          <div className="space-y-4 text-sm text-slate-700">
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-slate-800 mb-2 flex items-center"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs">1</span> Créez votre base de données gratuite</h3>
-              <p>Allez sur <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-blue-600 font-bold hover:underline">Firebase Console</a>, créez un projet, puis ajoutez une "Application Web" (l'icône <code>&lt;/&gt;</code>).</p>
-            </div>
-            
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-slate-800 mb-2 flex items-center"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs">2</span> Activez les services</h3>
-              <p>Dans Firebase, cherchez le menu à gauche et activez <b>Authentication</b> (choisissez Email/Mot de passe) et <b>Firestore Database</b>.</p>
-            </div>
-
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-slate-800 mb-2 flex items-center"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full mr-2 text-xs">3</span> Collez vos clés dans le code</h3>
-              <p>Copiez les informations données par Firebase (apiKey, projectId...) et remplacez la variable <code>myFirebaseConfig</code> (tout en haut, vers la ligne 14) dans votre fichier <b>App.jsx</b>.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. ECRAN DE CHARGEMENT
-  if (isAuthLoading) return <div className="flex h-screen items-center justify-center bg-slate-50"><div className="animate-pulse flex flex-col items-center"><Activity size={48} className="text-emerald-500 mb-4" /><p className="text-slate-500 font-medium">Chargement...</p></div></div>;
-
-  // 3. ECRAN DE CONNEXION
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
-        <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-slate-100 animate-fade-in-up">
-          <div className="flex flex-col items-center mb-8">
-            <div className="bg-emerald-500 p-3 rounded-2xl text-white mb-4 shadow-md">
-              <Activity size={32} />
-            </div>
-            <h1 className="text-3xl font-bold text-slate-800">Finance<span className="text-blue-600">Pro</span></h1>
-            <p className="text-slate-500 font-medium mt-2 text-center">
-              {isLoginMode ? 'Connectez-vous à votre espace' : 'Créez votre compte gratuitement'}
-            </p>
-          </div>
-
-          {authError && (
-            <div className="bg-rose-50 text-rose-600 p-3 rounded-xl mb-6 text-sm font-medium text-center border border-rose-100">
-              {authError}
-            </div>
-          )}
-
-          <form onSubmit={handleAuthSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Adresse Email</label>
-              <div className="relative">
-                <div className="absolute left-4 top-4 text-slate-400"><Mail size={20} /></div>
-                <input type="email" required value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="votre@email.com" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Mot de passe</label>
-              <div className="relative">
-                <div className="absolute left-4 top-4 text-slate-400"><Lock size={20} /></div>
-                <input type="password" required minLength={6} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="••••••••" />
-              </div>
-            </div>
-            <button type="submit" className="w-full py-4 rounded-2xl text-white font-bold mt-4 shadow-lg bg-blue-600 hover:bg-blue-700 transition-colors">
-              {isLoginMode ? 'Se Connecter' : 'S\'inscrire'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <button onClick={() => {setIsLoginMode(!isLoginMode); setAuthError('');}} className="text-slate-500 text-sm font-medium hover:text-blue-600 transition-colors">
-              {isLoginMode ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-            </button>
-          </div>
-        </div>
-        <style dangerouslySetInnerHTML={{__html: `
-          @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-          .animate-fade-in-up { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        `}} />
-      </div>
-    );
-  }
-
-  // 4. ECRAN PRINCIPAL (APPLICATION)
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
       
@@ -377,11 +196,21 @@ const App = () => {
           <NavItem id="reports" icon={PieChartIcon} label="Rapports" />
         </nav>
 
-        <button onClick={exportData} className="flex items-center space-x-2 text-slate-500 hover:text-blue-600 p-3 mt-auto">
-          <Download size={18} /> <span className="font-medium">Exporter données</span>
-        </button>
-        <button onClick={handleLogout} className="flex items-center space-x-2 text-rose-500 hover:text-rose-600 p-3 mt-2 border-t border-slate-100">
-          <LogOut size={18} /> <span className="font-medium">Se déconnecter</span>
+        {/* Indicateur Google Sheets */}
+        {!GOOGLE_SHEETS_URL ? (
+          <div className="mx-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
+            <AlertCircle size={16} className="mb-1 inline-block mr-1"/> 
+            Lien Google Sheets manquant. Données locales uniquement.
+          </div>
+        ) : (
+          <div className="mx-2 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center">
+            {syncStatus === 'syncing' ? <RefreshCw size={16} className="animate-spin mr-2" /> : <CheckCircle2 size={16} className="mr-2 text-emerald-500" />}
+            {syncStatus === 'syncing' ? 'Envoi vers Sheets...' : 'Connecté à Sheets'}
+          </div>
+        )}
+
+        <button onClick={exportData} className="flex items-center space-x-2 text-slate-500 hover:text-blue-600 p-3 mt-auto border-t border-slate-100">
+          <Download size={18} /> <span className="font-medium">Exporter données (JSON)</span>
         </button>
       </aside>
 
@@ -394,14 +223,18 @@ const App = () => {
             <h1 className="text-xl font-bold text-slate-800">Finance<span className="text-blue-600">Pro</span></h1>
           </div>
           <div className="flex items-center space-x-2">
-            <button onClick={handleLogout} className="text-slate-400 hover:text-rose-500 p-2 rounded-full transition-colors">
-              <LogOut size={22} />
-            </button>
+            {syncStatus === 'syncing' && <RefreshCw size={18} className="animate-spin text-blue-500 mr-2" />}
             <button onClick={() => setShowTransactionModal(true)} className="bg-blue-600 text-white p-2.5 rounded-full shadow-md">
               <Plus size={20} />
             </button>
           </div>
         </div>
+
+        {!GOOGLE_SHEETS_URL && (
+          <div className="md:hidden bg-amber-50 p-2 text-center text-xs text-amber-700 font-medium">
+            Mode hors-ligne : Données sur ce téléphone uniquement.
+          </div>
+        )}
 
         <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
           
@@ -570,7 +403,7 @@ const App = () => {
                         <h4 className="font-bold text-slate-800 text-lg">{debt.name}</h4>
                         <div className="flex space-x-2">
                           {isDone ? <CheckCircle2 className="text-emerald-500" /> : null}
-                          <button onClick={() => deleteDoc(doc(db, `${basePath}/debts`, debt.id))} className="text-slate-300 hover:text-rose-500"><Trash2 size={18}/></button>
+                          <button onClick={() => setDebts(prev => prev.filter(d => d.id !== debt.id))} className="text-slate-300 hover:text-rose-500"><Trash2 size={18}/></button>
                         </div>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
@@ -633,7 +466,7 @@ const App = () => {
                     <div key={goal.id} className={`p-6 rounded-3xl shadow-sm border transition-all ${isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}`}>
                       <div className="flex justify-between items-start mb-4">
                         <h4 className="font-bold text-slate-800 text-lg">{goal.name}</h4>
-                        <button onClick={() => deleteDoc(doc(db, `${basePath}/goals`, goal.id))} className="text-slate-300 hover:text-rose-500"><Trash2 size={18}/></button>
+                        <button onClick={() => setGoals(prev => prev.filter(g => g.id !== goal.id))} className="text-slate-300 hover:text-rose-500"><Trash2 size={18}/></button>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-emerald-600 font-medium">Épargné: {formatMoney(goal.savedAmount)}</span>
@@ -661,13 +494,13 @@ const App = () => {
           {activeTab === 'reports' && (
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-center space-y-4 animate-fade-in">
               <PieChartIcon size={64} className="mx-auto text-blue-200 mb-4" />
-              <h3 className="text-2xl font-bold text-slate-800">Sauvegarde et Rapports</h3>
+              <h3 className="text-2xl font-bold text-slate-800">Gestion des Données</h3>
               <p className="text-slate-600 max-w-md mx-auto">
-                Vos données sont automatiquement sauvegardées sur le cloud de FinancePro. Vous pouvez également en télécharger une copie locale.
+                Vos données sont stockées sur votre appareil de manière ultra-rapide. {GOOGLE_SHEETS_URL && "Une copie de sauvegarde de vos transactions est envoyée automatiquement sur votre fichier Google Sheets."}
               </p>
               <div className="pt-6 flex justify-center space-x-4">
                 <button onClick={exportData} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold shadow-md flex items-center space-x-2 transition-colors">
-                  <Download size={20} /> <span>Télécharger (JSON)</span>
+                  <Download size={20} /> <span>Télécharger copie locale (JSON)</span>
                 </button>
               </div>
             </div>
